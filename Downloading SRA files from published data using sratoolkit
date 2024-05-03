@@ -1,0 +1,25 @@
+## Downloading published data for ChIPseq and RNAseq with sratoolkit ##
+# done in ubuntu/linux with bash commandline #
+#install sratoolkit if not already installed. follow instructions!
+https://github.com/ncbi/sra-tools/wiki
+
+# how to use sratoolkit # 
+https://github.com/ncbi/sra-tools/wiki/HowTo:-Access-SRA-Data
+
+# extract file # 
+tar -vxzf sratoolkit.tar.gz
+
+# add to path # 
+export PATH=$PATH:$PWD/sratoolkit.3.0.7-ubuntu64/bin
+
+# test it works: # 
+fastq-dump --stdout -X 2 SRR390728
+
+use: vdb-config -i 
+for configuration
+
+## to download files run: ## 
+prefetch SRRxxxxxxfilenumber 
+
+## once downloaded, convert .sra file to .fastq (--split-3 is for paired-end data. --gzip will gzip files) ## 
+fastq-dump SRRxxxxxxfilenumber --split-3 --gzip
