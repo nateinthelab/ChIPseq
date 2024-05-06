@@ -1,0 +1,46 @@
+# ======================================== Alignment ======================================== #
+# bowtie2 was used to generate SAM files with the following code (run code within bowtie2 ##folder, in my_data, fastq files need to be located in bowtie2 folder when running this code), --no-unal puts only aligned reads into output bam:
+bowtie2 -x mm10/GRCh38_noalt_as -U file.fq.gz --no-unal -p (number of cores you wish to use) -S file.sam
+
+# align multiple files into one file.sam (if aligning paired end reads, use -1 for first pair file, and -2 for second pair file) 
+bowtie2 -x mm10 -1 file.fq.gz -2 file.fq.gz -S file.sam --no-unal
+
+# spike in, add --no-unal to only keep aligned reads (for example when mapping to ecoli genome in Cut & Run, it will removes all non-aligned reads)
+
+#pool multiple files into one sam
+bowtie2 -x mm10 -U file1.fq.gz,file2.fq.gz,file3.fq.gz -p (number of cores you wish to use) --no-unal -S file.sam
+
+
+
+# ======================================== Retain high-quality reads, remove duplicates, remove blacklisted regions ======================================== #
+## samtools for sam to bam conversion and mapping quality filtering
+# sam to bam
+samtools view -h --bam file.sam > file.bam
+
+# filter reads with mapq score higher than 40 (unique reads only)
+samtools view -b file.bam -q 40 > file_fil.bam
+
+# identify and remove duplicates with picardtools (must be in picardtools folder with picard.jar file), (-M is file to write duplication metrics to) - TIP: SORT BAMS BEFORE RUNNING PICARDTOOLS, it will still work with non-sorted bams, but will be very slow. 
+java -jar picard.jar MarkDuplicates --REMOVE_DUPLICATES true -I file.bam -O dup_rem.bam -M metrics.txt 
+
+# remove blacklisted regions (https://github.com/Boyle-Lab/Blacklist/tree/master/lists), blacklist.bed file in picardtools folder
+bedtools intersect -v -abam file.bam -b blacklist.bed > blacklistremoved.bam
+
+
+
+# ======================================== Sort and index bam files ======================================== #
+	    # (optional) use: zcat file.bam | head -c 4 | od -c 
+	    # (optional) to see if bam file will work for sorting/indexing. output should be: 	0000000   B   A   M 001
+
+# sort and then index bam file (you can use -@ (number of cores) 
+samtools sort file.bam -o file_sorted.bam
+samtools index file_sorted.bam 
+	
+# to index all bams in folder at once
+ls *.bam | xargs -n1 -P5 samtools index
+
+# verify if your bam files are sorted (optional, useful when working with downloaded data. If "is sorted: 1", then it is sorted)
+samtools stats file.bam | grep "is sorted:"	
+
+# merge sorted bam files
+samtools merge file1_sorted.bam file2_sorted.bam -o file1_file2_merged.bam 
