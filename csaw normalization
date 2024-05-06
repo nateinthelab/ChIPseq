@@ -1,0 +1,87 @@
+# ============================================ csaw normalization in R ============================================ #
+rm(list = ls())
+
+library(csaw)
+library(edgeR)
+library(dplyr)
+library(tidyverse)
+
+# prior to loading bams, bam files were aligned, mapq filtered for reads with mapq =/> 40, duplicates removed with picardtools, and blacklisted regions removed as well. 
+# load metadata and create bam.files object. All bams and metata files can be located in the same folder. Bam files must also have respective indexed .bam.bai files in same folder. 
+# metadata format should be (in csv):
+Name       Description        Path
+sample1    ChIP_h3k4me3       sample1.bam
+sample2    ChIP_h3k4me3       sample2.bam
+sample3    ChIP_h3k4me3       sample3.bam
+
+meta_data <- read.csv("meta_data.csv", header = TRUE)
+meta_data <- as.data.frame(meta_data)
+bam.files <- meta_data$Path
+bam.files
+
+# Counting reads into windows
+frag.len <- 110
+win.width <- 10
+param <- readParam(minq=20)
+data <- windowCounts(bam.files, ext=frag.len, width=win.width, param=param)
+head(assay(data))
+
+# Estimating average fragment length
+max.delay <- 500
+dedup.on <- reform(param, dedup=TRUE)
+x <- correlateReads(bam.files, max.delay, param=dedup.on)
+plot(0:max.delay, x, type="l", ylab="CCF", xlab="Delay (bp)")
+
+# Independant filtering for count data
+abundances <- aveLogCPM(asDGEList(data))
+summary(abundances)
+keep.simple <- abundances > -1
+filtered.data <- data[keep.simple,]
+summary(keep.simple)
+
+# calculate normalization factors via composition bias across samples. Use these normalization factors for scaling factors for bigwig generation and diffbind normalization. 
+binned <- windowCounts(bam.files, bin=TRUE, width=10000, param=param)
+filtered.data <- normFactors(binned, se.out=filtered.data)
+filtered.data$norm.factors
+
+# visualize normalization (pink line should pass directly through blue dot cloud to represent data was normalized well)
+par(mfrow=c(1, 1), mar=c(5, 4, 2, 1.5))
+adj.counts <- cpm(asDGEList(binned), log=TRUE)
+normfacs <- filtered.data$norm.factors
+for (i in seq_len(length(bam.files)-1)) {
+  cur.x <- adj.counts[,1]
+  cur.y <- adj.counts[,1+i]
+  smoothScatter(x=(cur.x+cur.y)/2+6*log2(10), y=cur.x-cur.y,
+                xlab="A", ylab="M", main=paste("1 vs", i+1))
+  all.dist <- diff(log2(normfacs[c(i+1, 1)]))
+  abline(h=all.dist, col="red")
+}
+
+
+# optional next steps to compare raw vs normalized##
+# compare pre and post normalized data
+# MA plot without normalization.
+ac.y <- asDGEList(data)
+adjc <- cpm(ac.y, log=TRUE)
+abval <- aveLogCPM(ac.y)
+mval <- adjc[,1]-adjc[,2]
+fit <- loessFit(x=abval, y=mval)
+smoothScatter(abval, mval, ylab="M", xlab="Average logCPM",
+              main="Raw", ylim=c(-2.5,2.5), xlim=c(0, 6))
+o <- order(abval)
+lines(abval[o], fit$fitted[o], col="red")
+# Repeating after normalization.
+ac.demo2 <- windowCounts(data, width=10000L, param=param)
+filtered <- filterWindowsGlobal(ac.demo2, ac.bin)
+keep <- filtered$filter > log2(4)
+ac.demo2 <- ac.demo2[keep,]
+ac.demo2 <- normOffsets(ac.demo2, se.out=TRUE)
+ac.off <- assay(ac.demo2, "offset")
+head(ac.off)
+
+re.adjc <- log2(assay(data1)+0.5) - ac.off/log(2)
+mval <- re.adjc[,1]-re.adjc[,2]
+fit <- loessFit(x=abval, y=mval)
+smoothScatter(abval, re.adjc[,1]-re.adjc[,2], ylab="M", xlab="Average logCPM",
+              main="Normalized", ylim=c(-2,2), xlim=c(0, 7))
+lines(abval[o], fit$fitted[o], col="red")
