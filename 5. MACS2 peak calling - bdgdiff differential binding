@@ -1,0 +1,69 @@
+# ============================================== macs2 ============================================== #
+## macs2 was used to call peaks (normally use default settings which call narrow peaks for TFs, and --broad for calling broad peaks on histone modif. For H3K4me3, use narrow peaks. 
+## use -f BAMPE for paired end reads (just -f BAM for single end reads). 
+## Sorted bam files needed for PE peak calling. -B is to provide .bdg (bedgraph file). Set less strict pvalue (like 0.003) to have many peaks, and this will help add complextity to data for diffbind
+
+ 
+# === broad peaks === #
+macs2 callpeak 
+-t file.sorted.bam 
+-c input.bam 
+-f BAMPE 
+-g mm (or hs for human) 
+--pvalue 0.03 (set lose pvalue for most peaks) 
+-n filename 
+--broad 
+--nomodel 
+--extsize 200 
+-B 
+--outdir nameofoutputdirectory
+
+ 
+# === narrow peaks === #
+macs2 callpeak 
+-t file.sorted.bam 
+-c input.bam 
+-f BAMPE 
+-g mm (or hs for human) 
+--pvalue 0.03 (set lose pvalue for most peaks) 
+-n filename 
+--nomodel 
+--extsize 200 
+-B 
+--outdir nameofoutputdirectory
+
+
+  # ======= to run cutoff analysis for determining your own p-value ======= #
+     macs2 callpeak -t file.sorted.bam -c input.sorted.file.bam -f BAM -g mm -n filename 	--broad --outdir mod_param_peaks --cutoff-analysis
+	
+  ## run above code and see which p-value (pscore is log10-pvalue, so do 10^-pscore to determine 
+  ## p-value) is most suitable to have highest number of peaks with lowest background (lowest p-value), then run code below
+	macs2 callpeak -t file.sorted.bam -c input.sorted.bam -f BAM -g mm -n filename --broad --pvalue [the one you chose] --outdir 
+
+
+ 
+	
+# ============================================== differential peak calling with macs2 bdgdiff ============================================== #
+# github.com/macs3-project/MACS/wiki/Call-differential-binding-events
+# 1. After peak calling, find value for "fragments after filtering in control" and "fragments after filtering in treatment" from excel sheet. 
+  2. These values are the number of tags/fragments that were used after removing input/IgG signal or treatment. 
+  3. These values are important as they will be used to normalize differential peak calling between samples by their read depth. 
+  4. Write/record this value for each respective file you wish to compare. -g in bdgdiff is to specify gap length
+
+# when peak calling, need to use -B to generate bedgraph file. Need to also use --nomodel and --extsize 120 (for transcription factors) or 150 (for histone marks)
+	macs2 callpeak -t file.sorted.bam -c input.bam -f BAMPE -B --nomodel --extsize 200 -g mm 		-n filename --outdir nameofoutputdirectory
+	macs2 bdgdiff 
+      --t1 cond1_treatment_pileup.bdg 
+      --c1 cond1_control_lambda.bdg 
+      --t2 cond2_treatment_pileup.bdg 
+      --c2 cond2_control_lambda.bdg 
+      --d1 numberoffragmentsincond1 		
+      --d2 numberoffragmentsincond2 
+      -g 60 
+      -l 200 
+      --o-prefix diff_c1_vs_c2
+
+# there will be 3 output files generated. common = peaks that are enriched in both conditions with no significance between conditions. last column in file is the difference between sample1 and sample 2 in log10 likelihood rations. cond1 = peaks that were enriched in sample 1 vs sample 2. cond2 = peaks that were enriched in sample 2 vs sample 1. 
+
+# Before using .bed files for annotation or other analysis, you must remove first row. Use:
+tail -n +2 inputfile.bed > outputfile.bed
