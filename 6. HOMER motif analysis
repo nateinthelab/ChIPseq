@@ -1,0 +1,5 @@
+# ================ HOMER motif analysis ================ #
+# to be run in directory with other HOMER documentation and genome files (Donut documentation)
+http://homer.ucsd.edu/homer/
+
+findMotifsGenome.pl file.bed mm10 outputdirectory -size 200 (for transcription factor. use 500-100 for histone marks) -p (number of cpu cores)
