@@ -2,6 +2,7 @@
 # done in ubuntu/linux with bash commandline #
 #install sratoolkit if not already installed. follow instructions!
 https://github.com/ncbi/sra-tools/wiki
+https://github.com/ncbi/sra-tools/wiki/02.-Installing-SRA-Toolkit
 
 # how to use sratoolkit # 
 https://github.com/ncbi/sra-tools/wiki/HowTo:-Access-SRA-Data
@@ -19,7 +20,7 @@ use: vdb-config -i
 for configuration
 
 ## to download files run: ## 
-prefetch SRRxxxxxxfilenumber 
+prefetch SRRxxxfilenumber 
 
 ## once downloaded, convert .sra file to .fastq (--split-3 is for paired-end data. --gzip will gzip files) ## 
-fastq-dump SRRxxxxxxfilenumber --split-3 --gzip
+fastq-dump SRRxxxfilenumber (or *.sra to convert all .sra files in a directory) --split-3 --gzip
