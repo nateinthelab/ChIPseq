@@ -44,3 +44,7 @@ samtools stats file.bam | grep "is sorted:"
 
 # merge sorted bam files
 samtools merge file1_sorted.bam file2_sorted.bam -o file1_file2_merged.bam 
+
+
+# ====================== to rename many files at once, or remove part of filename from all files ====================== #
+rename 's/removetext//;' *
