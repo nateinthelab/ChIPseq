@@ -1,0 +1,21 @@
+# ================================================== create matrix ================================================== #
+## create matrix with deeptools for plotHeatmap or plotProfiles (need bigwig (.bw)) and bed file in same working directory. 
+## if using scale-regions, -a and -b signify how many bp to go from downstream from TES (a) and upstream from TSS (b)
+## .bed or .gtf files used, if bed file, TSS is automatically centered to where most peaak signal is. Use gtf files that have TSS annotation. 
+computeMatrix reference-point (or scale-regions) 
+              -S file.bw 
+              -R file.bed/gtf 
+              --missingDataAsZero 
+              --skipZeros 
+              -a 3000 
+              -b 3000 
+              -o file_outputname
+
+# ================================================== create heatmap ================================================== #
+## create heatmap with deeptools (useful link for selecting colors of heatmaps https://matplotlib.org/2.0.2/users/colormaps.html), or (https://repec.sowi.unibe.ch/stata/palettes/colors.html)
+plotHeatmap -m matrixfilename -o outputfilename 
+            -max (sets scale for heatmap)
+            --yMax (sets scale for profileplot)
+            --colorMap (color options winter plasma viridis inferno PuRd cool magma and others)
+            --kmeans (number of clusters to produce) 
+            --outFileSortedRegions (output of kmeans/clusters)
