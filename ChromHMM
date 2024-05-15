@@ -1,0 +1,38 @@
+# ====================== ChromHMM analysis ======================
+http://compbio.mit.edu/ChromHMM/#:~:text=ChromHMM%20is%20based%20on%20a,one%20or%20more%20cell%20types.
+
+# 1. First, binarize bam or bed files.
+ChromHMM BinarizeBam/BinarizeBed/BinarizeSignal 
+[-b binsize]
+[-c controldir]
+[-e offsetend]
+[-f foldthresh]
+[-g signalthresh]
+[-gzip]
+[-o outputcontroldir]
+[-p poissonthresh]
+[-paired|
+[-center]
+[-n shift]
+chromosomelengthfile inputbamdir cellmarkfiletable outputbinarydir
+
+# 2. Need to have txt file (metadata) with data organized in 4 columns
+treatment1 ChIP'd_factor bam/bed_file1 input/IgG_file1 
+treatment2 ChIP'd_factor bam/bed_file2 input/IgG_file2 
+treatment3 ChIP'd_factor bam/bed_file3 input/IgG_file3 
+treatment4 ChIP'd_factor bam/bed_file4 input/IgG_file4
+
+# 3. place data and metadata files in a "data" folder containing bam/bed files and their respective input/IgG (if using bed files, cannot use bam controls, need to call peaks for input/IgG)
+# code for binarize bam/bed will look like this. -c is where input/IgG files are, data is where bam/bed files are, cellmarketfile.txt is meta file (may need to be modified as txt on mac excel to work)
+# output is output directory to put binarized files. 
+
+ChromHMM BinarizeBam -c control_inputfiles chrlengthfile inputdir cellmarkfiletable outputdir
+ChromHMM BinarizeBam -c data/  CHROMSIZES/hg38.txt data/ data/cellmarketfiletable.txt output
+
+ChromHMM LearnModel -p (# of cores) indutdir (output of binarizebam) outputdir numstates (# of states desired) assembly (mm10, hg38 etc.)
+ChromHMM LearnModel -p 12 binarize_output learnmodel_output 4 hg38
+
+#OverlapEnrichment will allow you to add annotations to your data
+ChromHMM OverlapEnrichment inputsegment (file from output of LearnModel) inputcoordir (COORDS, choose genome) outfileprefix (outputfilename, include folder)
+
+ChromHMM OverlapEnrichment learnmodel_output/vps15_4_segments.bed COORDS/hg38 overlapenrich_output/vps15
