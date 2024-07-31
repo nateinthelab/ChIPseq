@@ -1,0 +1,41 @@
+####################### align fastq files with bowtie2 #######################
+## make sure all fastq files are in bowtie2 directory with genomes ##
+## make sure to change genome based on species of sampless ##
+
+#!/bin/bash
+
+# Define variables   
+THREADS=18                          # Number of threads to use
+
+# Get a list of _1.fq.gz files
+FILE_LIST=(*_1.fq.gz)
+INDEX=0
+NUM_FILES=${#FILE_LIST[@]}
+
+# While loop to process each file pair
+while [ $INDEX -lt $NUM_FILES ]; do
+  R1=${FILE_LIST[$INDEX]}
+  BASE=$(basename ${R1} _1.fq.gz)
+  R2="${BASE}_2.fq.gz"
+  
+  if [ -f "${R2}" ]; then
+    # Define the output prefix for this pair
+    OUTPUT_PREFIX="${BASE}."
+
+    # Print debug information
+    echo "Processing ${R1} and ${R2}"
+
+    # Run bowtie2
+   bowtie2 
+   -x mm10 -1 ${R1} -2 ${R2} 
+   -S ${OUTPUT_PREFIX}.sam 
+   --no-unal
+   -p ${THREADS}
+   
+  else
+    echo "Error: Corresponding file for ${R1} not found."
+  fi
+
+  # Increment the index
+  INDEX=$((INDEX + 1))
+done
