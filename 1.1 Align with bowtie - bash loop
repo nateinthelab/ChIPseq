@@ -1,11 +1,14 @@
 ####################### align fastq files with bowtie2 #######################
 ## make sure all fastq files are in bowtie2 directory with genomes ##
-## make sure to change genome based on species of sampless ##
+## make sure to change genome based on species of samples ##
 
 #!/bin/bash
 
-# Define variables   
-THREADS=18                          # Number of threads to use
+# Define variables
+THREADS=19                          # Number of threads to use
+PICARD="picard.jar"        # Path to picard.jar file
+BLACKLIST="mm10-blacklist.v2.bed"  # Path to blacklist.bed file
+FINAL_OUTPUT_DIR="final_clean_bams"   #Path to output directory to store final clean bams
 
 # Get a list of _1.fq.gz files
 FILE_LIST=(*_1.fq.gz)
@@ -20,18 +23,59 @@ while [ $INDEX -lt $NUM_FILES ]; do
   
   if [ -f "${R2}" ]; then
     # Define the output prefix for this pair
-    OUTPUT_PREFIX="${BASE}."
+    OUTPUT_PREFIX="${BASE}"
 
     # Print debug information
     echo "Processing ${R1} and ${R2}"
 
     # Run bowtie2
-   bowtie2 
-   -x mm10 -1 ${R1} -2 ${R2} 
-   -S ${OUTPUT_PREFIX}.sam 
-   --no-unal
-   -p ${THREADS}
-   
+    bowtie2 -x mm10 -1 ${R1} -2 ${R2} \
+    -S ${OUTPUT_PREFIX}.sam \
+    --no-unal -p ${THREADS}
+    
+    # ========================================
+    # Retain high-quality reads, remove duplicates, remove blacklisted regions
+    # ========================================
+
+    # Convert SAM to BAM
+    samtools view -h -b ${OUTPUT_PREFIX}.sam > ${OUTPUT_PREFIX}.bam
+    rm ${OUTPUT_PREFIX}.sam  # Delete SAM file after conversion
+    
+    # Filter reads with mapping quality higher than 40
+    samtools view -b ${OUTPUT_PREFIX}.bam -q 40 > ${OUTPUT_PREFIX}_fil.bam
+    
+    
+    # Sort BAM file
+    samtools sort ${OUTPUT_PREFIX}_fil.bam -o ${OUTPUT_PREFIX}_sorted.bam
+    
+    
+    # Mark duplicates and remove them
+    java -jar ${PICARD} MarkDuplicates \
+      --REMOVE_DUPLICATES true \
+      -I ${OUTPUT_PREFIX}_sorted.bam \
+      -O ${OUTPUT_PREFIX}_dup_rem.bam \
+      -M ${OUTPUT_PREFIX}_metrics.txt
+      
+    
+    # Remove blacklisted regions
+    bedtools intersect -v -abam ${OUTPUT_PREFIX}_dup_rem.bam -b ${BLACKLIST} > ${OUTPUT_PREFIX}_blacklistremoved.bam
+    
+    
+    # Sort and index the final BAM file
+    samtools sort ${OUTPUT_PREFIX}_blacklistremoved.bam -o ${OUTPUT_PREFIX}_final_sorted.bam
+    samtools index ${OUTPUT_PREFIX}_final_sorted.bam
+    
+    rm ${OUTPUT_PREFIX}.bam  # Delete original BAM file after filtering
+    rm ${OUTPUT_PREFIX}_fil.bam  # Delete filtered BAM file after sorting
+    rm ${OUTPUT_PREFIX}_sorted.bam  # Delete sorted BAM file after duplicate removal
+    rm ${OUTPUT_PREFIX}_dup_rem.bam  # Delete BAM file with duplicates after blacklist removal
+    rm ${OUTPUT_PREFIX}_metrics.txt # Delete metrics txt file generated from picart tools
+    rm ${OUTPUT_PREFIX}_blacklistremoved.bam  # Delete blacklist-removed BAM file after final sorting and indexing
+    
+    # Move final BAM and Bam.bai to final output directory
+    mv ${OUTPUT_PREFIX}_final_sorted.bam ${FINAL_OUTPUT_DIR}
+    mv ${OUTPUT_PREFIX}_final_sorted.bam.bai ${FINAL_OUTPUT_DIR}
+    
   else
     echo "Error: Corresponding file for ${R1} not found."
   fi
