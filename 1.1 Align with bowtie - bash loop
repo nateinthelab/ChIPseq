@@ -1,4 +1,13 @@
 ####################### align fastq files with bowtie2 #######################
+## this code will align fastq, 
+# convert sam to bam, 
+# filter mapq score reads of >40, 
+# sort, 
+# remove duplicates with picart tools, 
+# remove blacklisted regions,
+# index bam file,
+and remove all intermediate files, placing final clean bams and bam.bai in a separate folder ## 
+
 ## make sure all fastq files are in bowtie2 directory with genomes ##
 ## make sure to change genome based on species of samples ##
 
