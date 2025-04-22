@@ -2,4 +2,8 @@
 # to be run in directory with other HOMER documentation and genome files (Donut documentation)
 http://homer.ucsd.edu/homer/
 
+#motif analysis
 findMotifsGenome.pl file.bed mm10 outputdirectory -size 200 (for transcription factor. use 500-100 for histone marks) -p (number of cpu cores)
+
+#peak annotations
+annotatePeaks.pl file.bed mm10 -go GO_outputdirectory -ann enhancers -ann promoters -ann histone > output_annotation.txt
