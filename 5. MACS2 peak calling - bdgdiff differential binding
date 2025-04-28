@@ -34,11 +34,11 @@ macs2 callpeak
 
 
   # ======= to run cutoff analysis for determining your own p-value ======= #
-     macs2 callpeak -t file.sorted.bam -c input.sorted.file.bam -f BAM -g mm -n filename 	--broad --outdir mod_param_peaks --cutoff-analysis
+     macs2 callpeak -t file.sorted.bam -c input.sorted.file.bam -f BAMPE -g mm -n filename 	--broad --outdir mod_param_peaks --cutoff-analysis
 	
   ## run above code and see which p-value (pscore is log10-pvalue, so do 10^-pscore to determine 
   ## p-value) is most suitable to have highest number of peaks with lowest background (lowest p-value), then run code below
-	macs2 callpeak -t file.sorted.bam -c input.sorted.bam -f BAM -g mm -n filename --broad --pvalue [the one you chose] --outdir 
+	macs2 callpeak -t file.sorted.bam -c input.sorted.bam -f BAMPE -g mm -n filename --broad --pvalue [the one you chose] --outdir 
 
 
  
