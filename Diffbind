@@ -1,0 +1,288 @@
+rm(list = ls())
+
+library(DiffBind)
+library(tidyverse)
+library(profileplyr)
+library(parallel)
+library(dplyr)
+library(ChIPseeker)
+library(rtracklayer)
+library(GenomicRanges)
+library(ChIPpeakAnno)
+library(clusterProfiler)
+library(ReactomePA)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+library(epistack)
+library(EnrichedHeatmap)
+library(rtracklayer)
+library(GenomicAlignments)
+library(IRanges)
+library(BiocStyle)
+library(ComplexHeatmap)
+library(S4Vectors)
+library(GenomeInfoDb)
+library(BiocGenerics)
+library(RColorBrewer)
+library(enrichplot)
+library(ggplot2)
+library(ggnewscale)
+
+
+setwd("/home/nate/my_data/nate_manuscript/ChIPseq/chIP-seq_adGFP_vs_adVps15WT_OE_mef_vps15ff_2023/diffbind")
+
+##Load summary file and create dbObj which contains consensus peaks 
+#(peaks present in at least two duplicates)
+samples <- read.csv("adenoGFP_Vps15_Pol2S5P_meta_diffbind.csv")
+dbObj <- dba(sampleSheet = samples)
+dbObj
+
+#create vectors of scaling factors calculated from csaw composition bias (or other normalization methods)
+scalefactorVps15 <- c(0.9566715, 1.212965, 0.9253288, 0.9313069)
+
+
+##compute the counts between bed and bam files for each sample 
+#(basically normalizing peaks to reads)
+dbObj <- dba.count(dbObj, bUseSummarizeOverlaps=TRUE)
+dbObj
+
+#normalize prior to analyzing DE peaks, bRetrieve shows normalization parameters
+#dbObj <- dba.normalize(dbObj, normalize = DBA_NORM_, library = scalefactorVps15)
+dbObj <- dba.normalize(dbObj, method = DBA_ALL_METHODS, normalize = DBA_NORM_NATIVE, background = TRUE)
+
+## Set contrasts you wish to apply
+dbObj<- dba.contrast(dbObj, categories = DBA_TREATMENT, minMembers = 2)
+dbObj<- dba.contrast(dbObj, categories = DBA_CONDITION, minMembers = 2)
+dbObj<- dba.contrast(dbObj, categories = DBA_FACTOR, minMembers = 2)
+
+##Analyze is main function  of Diffbind to identify differential peaks between samples
+dbObj <- dba.analyze(dbObj, method = DBA_ALL_METHODS, bGreylist = FALSE)
+
+#view differential peaks after dba.analyze
+#if you want to configure analysis with pvalue instead of FDR, run: dbObj$config$bUsePval <- TRUE
+dbObj$config$th <- 1
+dba.show(dbObj, bContrasts = TRUE)
+dba.report(dbObj, th=0.05, bUsePval = TRUE)
+
+
+##Below are just graphical tools to visualize differential peaks or overlapping regions
+plot(dbObj)
+dba.plotPCA(dbObj, method=DBA_DESEQ2, attributes=c(DBA_FACTOR))
+
+dba.plotMA(dbObj, contrast = 1, method=DBA_DESEQ2, th=0.07, bUsePval = TRUE, bXY = TRUE, bNormalized = TRUE) #, yrange = c(-0.5,0.5))
+
+#overlap rate between two factors
+olap.rate <- dba.overlap(dbObj, mode = DBA_OLAP_RATE)
+#overlap rate shows number of peaks on y-axis, and overlap number in peaksets on x axis. overlap number refers to how many samples you are comparing. One sample = one peakset
+plot(olap.rate, type='b',ylab='# of peaks', xlab='Overlap number in peaksets')
+
+    #venndiagram to show overlapping sites (identify mask names, then call overlap between masks and plot as venn diagram
+    names(dbObj$masks)
+    dba.plotVenn(dbObj, dbObj$masks$All)
+    dbObj_overlap <- dba.overlap(dbObj, dbObj$masks$Consensus)
+    #convert GRanges file to dataframe before export
+    out <- as.data.frame(dbObj_overlap)
+    ##consensus peaks: just set wd to desktop as test, important note, use \ on file instead of / when writing table(on mac)!!
+    #this file represents all comparisons in venn diagram, NA values mean no overlap. This file must be sorted/modified to remove just overlaps you wish
+    write.table(out, file="output_bed_Pol2S5Pmacs2pval3.16e-8_Vps15macs2pval0.0003/adenoGFP_Vps15_Pol2S5P_consensuspeaks.bed", sep="\t", quote=F, row.names=F)
+
+##correlation plots and heatmaps
+corvals <- dba.plotHeatmap(dbObj)
+hmap <- colorRampPalette(c("white", "lightblue", "darkblue"))(n = 40)
+readscores <- dba.plotHeatmap(dbObj, contrast=1, correlations=FALSE,
+                              scale="row", colScheme = hmap, th=0.05, bUsePval = TRUE)
+##useful code: content.cruk.cam.ac.uk/bioinformatics/software/DiffBind/plotProfileDemo.html 
+#www.bioconductor.org/packages/release/bioc/vignettes/profileplyr/inst/doc/profileplyr.html
+profiles <- dba.plotProfile(dbObj, sites = 1, th = 0.5, bUsePval = TRUE)
+dba.plotProfile(profiles)
+#output as deeptools matrix
+outpath <- file.path("output_matrix", "Pol2S5P_diffbind_matrix.gz", overwrite = FALSE)
+export_deepToolsMat(profiles, con = outpath)
+dba.plotVolcano(dbObj)
+
+
+###This is to extract the differential peaks for gene annotation(these bed files will need to be modified and reformated in their columns prior to ChIPseeker loading/analysis)
+##Extracting results from DESeq2
+res_deseq <- dba.report(dbObj, method=DBA_DESEQ2, contrast = 1)
+#convert GRanges file to dataframe before export
+out <- as.data.frame(res_deseq)
+##consensus peaks: just set wd to desktop as test, important note, use \ on file instead of / when writing table(on mac)!!
+write.table(out, file="output_bed_macs2pvalue3.16e-8/peaks.bed", sep="\t", quote=F, row.names=F)
+##export separate bed files for peaks that either gain or lost enrichment in wt
+#gained enrichment in vps15wt
+res_deseq <- out %>% 
+  filter(p.value < 0.05 & Fold > 0) 
+
+#lost enrichment in vps15wt
+res_deseq <- out %>% 
+  filter(p.value < 0.05 & Fold < 0) 
+
+#%>% 
+#select(seqnames, start, end, Fold)
+write.table(res_deseq, file="output_bed/Pol2S5P_gainedenrich_in_gfp.bed", sep="\t", quote=F, row.names=F)
+
+##remove columns from output_bed before using .bed files in ChIPseeker. Remove the following columns: width, strand, Conc, Conc_ko, Conc_wt, p.value, FDR.
+##insert column titled peak_1, and have it continued throughout rest of rows. ext. row 1 = peak1, row 2 = peak2, etc. Insert this peak column in between "end" and "Fold" column
+##once above changes have been made, remove header and save as new _mod.bed file to distinguish from original. 
+vps15_gainedin_gfp <- read_table("output_bed/vps15_gainedenrich_in_gfp.bed", col_names = TRUE)
+vps15_gainedin_vps15wt <- read_table("output_bed/vps15_gainedenrich_in_vps15wt.bed", col_names = TRUE)
+
+#keep only desired columns
+keeps <- c("seqnames", "start", "end", "Fold")
+vps15_gainedin_gfp = vps15_gainedin_gfp[keeps]
+vps15_gainedin_vps15wt = vps15_gainedin_vps15wt[keeps]
+
+#add peaks column with peak
+vps15_gainedin_gfp <- add_column(vps15_gainedin_gfp, peaks = paste0("peak", 1:nrow(vps15_gainedin_gfp)), .after = "end")
+vps15_gainedin_vps15wt <- add_column(vps15_gainedin_vps15wt, peaks = paste0("peak", 1:nrow(vps15_gainedin_vps15wt)), .after = "end")
+
+#make negative values to be positive for annotation and pathway enrichment analysis 
+vps15_gainedin_gfp$Fold <- abs(vps15_gainedin_gfp$Fold)
+pol2s5p_gainedin_gfp$Fold <- abs(pol2s5p_gainedin_gfp$Fold)
+
+#remove headers
+colnames(vps15_gainedin_gfp) <- NULL
+colnames(vps15_gainedin_vps15wt) <- NULL
+
+##export new tables with _mod ending to differentiate from original .bed file
+write.table(vps15_gainedin_gfp, file="output_bed/vps15_gainedin_gfp_mod.bed", sep="\t", quote=F, row.names=F)
+write.table(vps15_gainedin_vps15wt, file="output_bed/vps15_gainedin_vps15wt_mod.bed", sep="\t", quote=F, row.names=F)
+
+
+
+######ChIPseeker analysis
+setwd("/home/nate/my_data/nate_manuscript/ChIPseq/chIP-seq_adGFP_vs_adVps15WT_OE_mef_vps15ff_2023")
+library(ChIPseeker)
+
+#load respective genome#
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+##Load bed files (be sure to check the format, (chr start end peak# weightscore)(in this format of columns))
+##will need to modify files from DiffBind in BBedit/excel (the weight (V5) column is fold change between WTvsKO/FedvsFast in these files)
+gfp_merged_peaks <- readPeakFile("Vps15_peaks/CH-9_10_merged_peaks.narrowPeak", as = "GRanges")
+vps15wt_merged_peaks <- readPeakFile("Vps15_peaks/CH-11_12_merged_peaks.narrowPeak", as = "GRanges")
+
+#Prepare promoter regions for individual file
+promoter <- getPromoters(TxDb=txdb, upstream=3000, downstream=3000)
+
+####one file analysis
+##Create tag matrix for individual file
+tagMatrix <- getTagMatrix(gfp_merged_peaks, windows=promoter)
+
+##Peak Annotation
+peakAnno <- annotatePeak(consensus_Pol2S5P_only, tssRegion = c(-3000,3000),
+                         TxDb = txdb, annoDb = "org.Mm.eg.db")
+
+#Export annotation as txt or csv file type
+write.csv(peakAnno, "ChIPseeker/peak_anno_consensus/consensuspeaks_CH-5_CH-6_only_anno.csv")
+
+##visualization of Annotated peaks
+plotAnnoBar(peakAnno)
+plotDistToTSS(peakAnno)
+plotAvgProf(tagMatrix, xlim=c(-5000, 5000))
+
+
+#GeneOntology 
+entrez <- enrichGO(as.data.frame(peakAnno)$ENSEMBL,
+                   keyType = "ENSEMBL",
+                   OrgDb = "org.Mm.eg.db",
+                   ont = "BP",
+                   pAdjustMethod = "BH",
+                   readable = TRUE)
+dotplot(entrez, showCategory = 25)
+entrez <- pairwise_termsim(entrez)
+emapplot(entrez, showCategory=20, title = "polii_fedvsfastwt_gainederich_in_fast")
+#export gene list and associated pathways
+write.csv(entrez, "enrichGO_polii_fast_gainederich_in_wt_vs_ko_GOBP.csv")
+
+#KEGG (download kegg.db from  [https://www.bioconductor.org/packages/3.11/data/annotation/src/contrib/KEGG.db_3.2.4.tar.gz])
+#then : install.packages("C:/path where KEGG.db downloaded/KEGG.db_3.2.4.tar.gz", repos = NULL, type = "source")
+#then use the "use_internal_data = TRUE" command on enrichKEGG
+kegg <- enrichKEGG(as.data.frame(peakAnno)$geneId, 
+                   organism = "mmu",
+                   use_internal_data = TRUE)
+
+dotplot(kegg, orderBy = "x", 
+        showCategory = 20,
+        title = "xxx")
+kegg <- pairwise_termsim(kegg)
+emapplot(kegg, showCategory = 35, title = "xxxx")
+write.csv(kegg, "KEGG_polii_fast_gainederich_in_wt_vs_ko.csv")
+
+#reactome
+reactome <- enrichPathway(as.data.frame(peakAnno)$geneId, organism = "mouse")
+dotplot(reactome, showCategory = 20)
+reactome <- pairwise_termsim(reactome)
+emapplot(reactome, showCategory = 40, title = "xxxx")
+write.csv(reactome, "reactome_polii_fast_gainederich_in_wt_vs_ko.csv")
+
+
+###For comparing multiple files at once
+#load respective genome#
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+##Load bed files (be sure to check the format, (chr start end peak# weightscore)(in this format of columns))
+##will need to modify files from DiffBind in BBedit/excel (the weight (V5) column is fold change between WTvsKO/FedvsFast in these files)
+
+#Prepare promoter regions for individual file
+promoter <- getPromoters(TxDb=txdb, upstream=4000, downstream=3000)
+
+##if list to compare two or more objects, use lapply(peakList, getTagMatrix, windows=promoter)
+peakList <- list(consensus_Pol2S5P_only, consensus_Vps15_Pol2S5P, consensus_Vps15_only)
+names(peakList) <- c("consensus_Pol2S5P_only","consensus_Vps15_Pol2S5P", "consensus_Vps15_only")
+#create tagmatrixlist object (just allows for multiple tagmatrices)
+tagMatrixlist <- lapply(peakList, getTagMatrix, windows=promoter)
+##stack all avg profiles together in one plot
+plotAvgProf(tagMatrixlist, xlim=c(-5000, 5000))                    
+
+peakAnnoList <- lapply(peakList, annotatePeak, TxDb=txdb,
+                       tssRegion=c(-1000, 1000), verbose=FALSE)
+
+##Barplot
+plotAnnoBar(peakAnnoList)
+##Plot distance to TSS
+plotDistToTSS(peakAnnoList)
+
+##separate avg profiles in rows (remove resample to generate the plot faster) 
+plotAvgProf(tagMatrixlist, xlim = c(-5000,5000), conf = 0.95, resample = 100, facet = "row")
+##computationally heavy to run plotPeakProf2##just run on bioinformatics computer unless bed files are small
+plotPeakProf2(peakList, upstream = rel(0.2), downstream = rel(0.2),
+              conf = 0.95, by = "gene", type = "body",
+              TxDb = txdb, facet = "row", nbin = 800)
+
+tagHeatmap(tagMatrixlist, xlim = c(-3000,3000),color=NULL)
+
+
+#reactome
+reactome <- enrichPathway(as.data.frame(peakAnno)$geneId, organism = "mouse")
+dotplot(reactome, showCategory = 20)
+reactome <- pairwise_termsim(reactome)
+emapplot(reactome, showCategory = 40, title = "xxxx")
+
+
+##Functional Profile Comparison and Pathway enrichment between multiple files
+genes = lapply(peakAnnoList, function(i) as.data.frame(i)$geneId)
+#GeneOntology 
+compGO <- compareCluster(geneCluster = genes,
+                         fun = "enrichGO",
+                         ont = "BP",
+                         OrgDb = "org.Mm.eg.db",
+                         pvalueCutoff = 0.05,
+                         pAdjustMethod = "BH")
+
+compGO <- pairwise_termsim(compGO)
+emapplot(compGO, showCategory=25, title = "ChIP-Vps15: gfp peaks and vps15wt peaks")
+#export gene list and associated pathways
+write.csv(compGO, "enrichGO_gfp_vs_cre_lostenrich_GOBP.csv")
+
+##Vennplot to see number of overlapping genes between groups
+vennplot(genes)
+ggVennDiagram(genes, label_alpha = 0, edge_size = 1, label = "both", label_size = 8, set_color = c("black", "black"))+
+  scale_fill_distiller(palette = "Spectral")+
+  scale_color_manual(values = c("black", "black"))
+
+
+############################################################################################################################
+#gene annotation of GRanges objects
+library(AnnotationHub)
+bmal1 <- readPeakFile("bmal1down_annofdr0.15_nogenes.bed", as = "GRanges")
+ah <- AnnotationHub()
