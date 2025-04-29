@@ -1,0 +1,37 @@
+
+# merge overlapping regions between two peak files to get a bed file with  just chr regions of overlap # 
+bedtools merge -i <(cat sampleA_peaks.narrowPeak sampleB_peaks.narrowPeak | sort -k1,1 -k2,2n) > merged_peaks.bed
+
+# count reads from each respective bam file and add their read counts to the chr positions of overlap # 
+bedtools multicov -bams sampleA.bam sampleB.bam -bed merged_peaks.bed > counts.txt
+
+# resulting table should look like 
+chr start end counts_bam1 counts_bam2
+
+
+## plot data in R ## 
+library(ggplot2)
+
+counts <- read.table("counts.txt", header=FALSE)
+colnames(counts) <- c("chr", "start", "end", "countA", "countB")
+
+counts$logA <- log2(counts$countA + 1)
+counts$logB <- log2(counts$countB + 1)
+
+ggplot(counts, aes(x = logA, y = logB)) +
+  geom_point(alpha = 0.3, size = 1) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = "Log2 Read Count Comparison",
+    x = "log2(Read count in Sample A)",
+    y = "log2(Read count in Sample B)"
+  ) +
+  theme_minimal()
+
+    # color points by log2FC # 
+counts$logFC <- counts$logB - counts$logA
+ggplot(counts, aes(x = logA, y = logB, color = logFC)) +
+  geom_point(alpha = 0.5, size = 1) +
+  scale_color_gradient2(low = "blue", mid = "gray", high = "red", midpoint = 0) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  theme_classic()
