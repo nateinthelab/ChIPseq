@@ -25,7 +25,7 @@ macs2 callpeak
 -c input.bam 
 -f BAMPE 
 -g mm (or hs for human) 
---pvalue 0.03 (set lose pvalue for most peaks) 
+--pvalue 0.03 (set lose pvalue for most peaks) (or use --qvalue which will can restrict peaks by their intensity instead of confidence (pvalue)) 
 -n filename 
 --nomodel 
 --extsize 200 
