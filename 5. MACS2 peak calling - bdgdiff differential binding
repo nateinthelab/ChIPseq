@@ -50,15 +50,15 @@ macs2 callpeak
   3. These values are important as they will be used to normalize differential peak calling between samples by their read depth. 
   4. Write/record this value for each respective file you wish to compare. -g in bdgdiff is to specify gap length
 
-# when peak calling, need to use -B to generate bedgraph file. Need to also use --nomodel and --extsize 120 (for transcription factors) or 150 (for histone marks)
-	macs2 callpeak -t file.sorted.bam -c input.bam -f BAMPE -B --nomodel --extsize 200 -g mm 		-n filename --outdir nameofoutputdirectory
+# when peak calling, need to use -B to generate bedgraph file. Need to also use --nomodel and --extsize 120 (for transcription factors) or 150 or 200 (for histone marks)
+	macs2 callpeak -t file.sorted.bam -c input.bam -f BAMPE -B --nomodel --extsize 1200 -g mm 		-n filename --outdir nameofoutputdirectory
 	macs2 bdgdiff 
       --t1 cond1_treatment_pileup.bdg 
       --c1 cond1_control_lambda.bdg 
       --t2 cond2_treatment_pileup.bdg 
       --c2 cond2_control_lambda.bdg 
-      --d1 numberoffragmentsincond1 		
-      --d2 numberoffragmentsincond2 
+      --d1 number_of_treatment_fragments_in_cond1 		
+      --d2 number_of_treatment_fragments_in_cond2 
       -g 60 
       -l 200 
       --o-prefix diff_c1_vs_c2
