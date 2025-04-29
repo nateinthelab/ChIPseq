@@ -8,6 +8,9 @@ bedtools multicov -bams sampleA.bam sampleB.bam -bed merged_peaks.bed > counts.t
 # resulting table should look like 
 chr start end counts_bam1 counts_bam2
 
+# if you need to remove any columns from bed file
+cut --complement -f4,5 (removes columns 4 and 5 for example) input.bed > output.bed
+
 
 ## plot data in R ## 
 library(ggplot2)
