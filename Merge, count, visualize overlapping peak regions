@@ -12,29 +12,57 @@ chr start end counts_bam1 counts_bam2
 cut --complement -f4,5 (removes columns 4 and 5 for example) input.bed > output.bed
 
 
-## plot data in R ## 
+############################################################################################################################
+#plot log2FC of overlapping regions between chip# 
+setwd("peak_merge_counts")
 library(ggplot2)
 
-counts <- read.table("counts.txt", header=FALSE)
-colnames(counts) <- c("chr", "start", "end", "countA", "countB")
+#load table and add columns names
+#h3k4me3 
+  K4_counts <- read.table("K4_1_2_merged_counts.txt")
+  colnames(K4_counts) <- c("chr", "start", "end", "counts_K4_1", "counts_K4_2")
 
-counts$logA <- log2(counts$countA + 1)
-counts$logB <- log2(counts$countB + 1)
+  K4_bdgdiff_counts <- read.table("K4_bdgdiff_peak_counts_cond2_gainedin_Vps15wt_mod.txt")
+  colnames(K4_bdgdiff_counts) <- c("chr", "start", "end", "counts_K4_1", "counts_K4_2")
 
-ggplot(counts, aes(x = logA, y = logB)) +
-  geom_point(alpha = 0.3, size = 1) +
-  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
-  labs(
-    title = "Log2 Read Count Comparison",
-    x = "log2(Read count in Sample A)",
-    y = "log2(Read count in Sample B)"
-  ) +
-  theme_minimal()
+  
+#transform counts to log (or log2)
+#h3k4me3 
+  K4_counts$log_K4_1 <- log(K4_counts$counts_K4_1 +1)
+  K4_counts$log_K4_2 <- log(K4_counts$counts_K4_2 +1)
 
-    # color points by log2FC # 
-counts$logFC <- counts$logB - counts$logA
-ggplot(counts, aes(x = logA, y = logB, color = logFC)) +
-  geom_point(alpha = 0.5, size = 1) +
-  scale_color_gradient2(low = "blue", mid = "gray", high = "red", midpoint = 0) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-  theme_classic()
+  K4_bdgdiff_counts$log_K4_1 <- log(K4_bdgdiff_counts$counts_K4_1 +1)
+  K4_bdgdiff_counts$log_K4_2 <- log(K4_bdgdiff_counts$counts_K4_2 +1)
+  
+
+#add logFC to columns
+#h3k4me3  
+  K4_counts$logFC <- K4_counts$log_K4_2 / K4_counts$log_K4_1
+  K4_counts$FC <- (K4_counts$counts_K4_2 / K4_counts$counts_K4_1)
+
+  K4_bdgdiff_counts$logFC <- K4_bdgdiff_counts$log_K4_2 / K4_bdgdiff_counts$log_K4_2
+  K4_bdgdiff_counts$FC <- (K4_bdgdiff_counts$counts_K4_2 / K4_bdgdiff_counts$counts_K4_1)
+  
+  
+#remove row 5677 in K4 counts table (which is Vps15 dna from overexpression plasmid)
+#h3k4me3  
+  which.max(K4_counts$FC) # to identify Vps15 DNA peak(s)
+  K4_counts <- K4_counts[-5677,]
+
+  which.max(K4_bdgdiff_counts$FC) # to identify Vps15 DNA peak(s)
+  K4_bdgdiff_counts <- K4_bdgdiff_counts[-c(4757,4758),]
+  
+
+#h3k4me3  
+#plot counts colored by logFC or just FC
+ggplot(K4_bdgdiff_counts, aes(x = log_K4_1, y = log_K4_2, color = FC))+
+  geom_point(alpha = 0.8, size = 1)+
+  scale_color_gradient2(low = "white", mid = "azure", high = "deepskyblue2", midpoint = 0)+
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "solid", alpha = 0.3)+
+  scale_x_continuous(breaks = seq(2,8, by = 2), limits = c(0,8))+
+  scale_y_continuous(breaks = seq(2,8, by = 2), limits = c(0,8))+
+  labs(title = "Bdgdiff FC read counts K4_1 vs K4_2 - cond2",
+       x = "log read count in K4_1",
+       y = "log read count in K4_2")+
+  theme_bw() + theme(panel.grid = element_blank(),
+                     plot.title = element_text(size = 10))
