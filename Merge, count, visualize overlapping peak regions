@@ -16,6 +16,7 @@ cut --complement -f4,5 (removes columns 4 and 5 for example) input.bed > output.
 #plot log2FC of overlapping regions between chip# 
 setwd("peak_merge_counts")
 library(ggplot2)
+library(dplyr)
 
 #load table and add columns names
 #h3k4me3 
@@ -44,13 +45,11 @@ library(ggplot2)
   K4_bdgdiff_counts$FC <- (K4_bdgdiff_counts$counts_K4_2 / K4_bdgdiff_counts$counts_K4_1)
   
   
-#remove row 5677 in K4 counts table (which is Vps15 dna from overexpression plasmid)
-#h3k4me3  
-  which.max(K4_counts$FC) # to identify Vps15 DNA peak(s)
-  K4_counts <- K4_counts[-5677,]
-
-  which.max(K4_bdgdiff_counts$FC) # to identify Vps15 DNA peak(s)
-  K4_bdgdiff_counts <- K4_bdgdiff_counts[-c(4757,4758),]
+#remove any high max values that could be sequencing artifacts (or overexpressed DNA), or remove 0s
+  which.max(K4_counts$FC) # to identify top peak(s)
+  K4_counts <- K4_counts[-5677,] # to remove row of top peak. only use for 1 or two row removal, otherwise, not efficient use of time. 
+#remove 0s from table
+K4_counts <- K4_counts %>% filter(if_any(everything(), ~. !=0))
   
 
 #h3k4me3  
