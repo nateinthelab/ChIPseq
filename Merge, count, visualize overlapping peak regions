@@ -1,8 +1,8 @@
 
-# merge overlapping regions between two peak files to get a bed file with  just chr regions of overlap # 
+# merge peak regions between two peak files to get a bed file with just all peaks from both original bed files# 
 bedtools merge -i <(cat sampleA_peaks.narrowPeak sampleB_peaks.narrowPeak | sort -k1,1 -k2,2n) > merged_peaks.bed
 
-# count reads from each respective bam file and add their read counts to the chr positions of overlap # 
+# count reads from each respective bam file and add their read counts to the chr positions of merged peak positions # 
 bedtools multicov -bams sampleA.bam sampleB.bam -bed merged_peaks.bed > counts.txt
 
 # resulting table should look like 
@@ -13,7 +13,7 @@ cut --complement -f4,5 (removes columns 4 and 5 for example) input.bed > output.
 
 
 ############################################################################################################################
-#plot log2FC of overlapping regions between chip# 
+#plot log2FC of merged peak regions# 
 setwd("peak_merge_counts")
 library(ggplot2)
 library(dplyr)
